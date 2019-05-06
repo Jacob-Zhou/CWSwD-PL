@@ -1,0 +1,202 @@
+{
+    "server_url": "localhost:8500",
+    "config_template_path": "configs/config.template",
+    "tokenizers": [
+        {
+            "name": "pd_tokenizer",
+            "config": "configs/tokenizers/PD.json"
+        },
+        {
+            "name": "ctb_tokenizer",
+            "config": "configs/tokenizers/CTB.json"
+        },
+        {
+            "name": "pd_dictgram_tokenizer",
+            "config": "configs/tokenizers/PD_DG.json"
+        },
+        {
+            "name": "ctb_dictgram_tokenizer",
+            "config": "configs/tokenizers/CTB_DG.json"
+        },
+        {
+            "name": "com_tokenizer",
+            "config": "configs/tokenizers/COM.json"
+        },
+        {
+            "name": "fin_tokenizer",
+            "config": "configs/tokenizers/FIN.json"
+        },
+        {
+            "name": "med_tokenizer",
+            "config": "configs/tokenizers/MED.json"
+        },
+        {
+            "name": "lit_tokenizer",
+            "config": "configs/tokenizers/LIT.json"
+        },
+        {
+            "name": "zx_tokenizer",
+            "config": "configs/tokenizers/ZX.json"
+        },
+        {
+            "name": "com_dictgram_tokenizer",
+            "config": "configs/tokenizers/COM_DG.json"
+        },
+        {
+            "name": "fin_dictgram_tokenizer",
+            "config": "configs/tokenizers/FIN_DG.json"
+        },
+        {
+            "name": "med_dictgram_tokenizer",
+            "config": "configs/tokenizers/MED_DG.json"
+        },
+        {
+            "name": "lit_dictgram_tokenizer",
+            "config": "configs/tokenizers/LIT_DG.json"
+        },
+        {
+            "name": "zx_dictgram_tokenizer",
+            "config": "configs/tokenizers/ZX_DG.json"
+        }
+    ],
+    "dict_builders": [
+        {
+            "name": "default_dict_builder",
+            "config": "configs/dict_builders/default.json"
+        }
+    ],
+    "models": [
+        {
+            "name": "attend_input",
+            "standards": [
+                {
+                    "name": "pd",
+                    "alias": "PKU",
+                    "tokenizer": "pd_tokenizer",
+                    "dict_builder": "default_dict_builder",
+                    "versions": [
+                        0
+                    ],
+                    "path": "pd_l2_clip"
+                }
+            ],
+            "alias": "attend_input",
+            "base_path": "/serving/models/attend_input",
+            "multitag": true
+        },
+        {
+            "name": "baseline",
+            "standards": [
+                {
+                    "name": "pd",
+                    "alias": "PKU",
+                    "tokenizer": "pd_tokenizer",
+                    "dict_builder": "default_dict_builder",
+                    "versions": [
+                        0
+                    ],
+                    "path": "pd_l2_clip"
+                },
+                {
+                    "name": "ctb",
+                    "alias": "CTB",
+                    "tokenizer": "ctb_tokenizer",
+                    "dict_builder": "default_dict_builder",
+                    "versions": [
+                        0
+                    ],
+                    "path": "ctb_l2_clip"
+                },
+                {
+                    "name": "com",
+                    "alias": "计算机",
+                    "tokenizer": "com_tokenizer",
+                    "dict_builder": "default_dict_builder",
+                    "versions": [
+                        0
+                    ],
+                    "path": "com_l2_clip"
+                },
+                {
+                    "name": "fin",
+                    "alias": "经济学",
+                    "tokenizer": "fin_tokenizer",
+                    "dict_builder": "default_dict_builder",
+                    "versions": [
+                        0
+                    ],
+                    "path": "fin_l2_clip"
+                },
+                {
+                    "name": "med",
+                    "alias": "医药学",
+                    "tokenizer": "med_tokenizer",
+                    "dict_builder": "default_dict_builder",
+                    "versions": [
+                        0
+                    ],
+                    "path": "med_l2_clip"
+                },
+                {
+                    "name": "lit",
+                    "alias": "文学",
+                    "tokenizer": "lit_tokenizer",
+                    "dict_builder": "default_dict_builder",
+                    "versions": [
+                        0
+                    ],
+                    "path": "lit_l2_clip"
+                },
+                {
+                    "name": "zx",
+                    "alias": "诛仙",
+                    "tokenizer": "zx_tokenizer",
+                    "dict_builder": "default_dict_builder",
+                    "versions": [
+                        0
+                    ],
+                    "path": "zx_l2_clip"
+                }
+            ],
+            "alias": "baseline",
+            "base_path": "/serving/models/baseline",
+            "multitag": true
+        },
+        {
+            "name": "dict_concat",
+            "standards": [
+                {
+                    "name": "pd",
+                    "alias": "PKU",
+                    "tokenizer": "pd_tokenizer",
+                    "dict_builder": "default_dict_builder",
+                    "versions": [
+                        0
+                    ],
+                    "path": "pd_l2_clip"
+                }
+            ],
+            "alias": "dict_concat",
+            "base_path": "/serving/models/dict_concat",
+            "multitag": true
+        },
+        {
+            "name": "dict_hyper",
+            "standards": [
+                {
+                    "name": "pd",
+                    "alias": "PKU",
+                    "tokenizer": "pd_tokenizer",
+                    "dict_builder": "default_dict_builder",
+                    "versions": [
+                        0
+                    ],
+                    "path": "pd_l2_clip"
+                }
+            ],
+            "alias": "dict_hyper",
+            "base_path": "/serving/models/dict_hyper",
+            "multitag": true
+        }
+    ]
+}

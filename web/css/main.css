@@ -1,0 +1,104 @@
+.navbar {
+	background: whitesmoke;
+	border: transparent;
+}
+
+.container-fluid {
+	width: 1000px;
+	padding: 0;
+}
+
+.cws-brand {
+	font-size: x-large;
+	margin: 10px 5px;
+	color: dimgray;
+}
+
+.cws-brand:hover {
+	color: darkgray;
+}
+
+.navbar-brand {
+    margin: 0;
+    font-size: x-large;
+	font-family: "Microsoft YaHei","黑体","宋体",sans-serif;
+}
+
+.main-container {
+	width: 1000px;
+    margin: 20px auto auto;
+}
+
+.form-control {
+	width: 1015px;
+	min-width: 1000px;
+	max-width: 1000px;
+	height: 80px;
+	min-height: 80px;
+}
+
+.button-container {
+    overflow: auto;
+}
+
+.el-cascader {
+	float: right;
+	margin: 8px;
+}
+
+.results {
+	overflow: auto;
+	padding: 6px;
+	background: snow;
+	border-radius: 10px;
+    min-height: 48px;
+    margin: 20px auto;
+}
+
+.submit-btn {
+	margin: 8px 6px;
+	min-width: 50px;
+    height: 40px;
+	float: right;
+}
+
+.copy {
+	margin: 8px 6px;
+	min-width: 50px;
+	height: 40px;
+	float: right;
+	background: white;
+	border: 1px solid gray;
+	color: gray;
+}
+
+.result {
+	overflow: auto;
+    padding: 4px;
+	margin-bottom: 5px;
+    border-radius: 8px;
+}
+
+.result:last-of-type {
+	margin-bottom: 0;
+}
+
+.token {
+    width: auto;
+    padding-right: 8px;
+    padding-left: 8px;
+    border-color: #80808033;
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 5px;
+    margin: 3px;
+    background: white;
+}
+
+.result:hover {
+    background: whitesmoke;
+}
+
+.token:hover {
+    background: gainsboro;
+}

@@ -1,0 +1,5 @@
+{
+    "model_config_list" : "model_config_list: {{{configs}}}",
+    "config": "config:{{name:'{model}/{standard}',base_path:'{model_base_path}/{standard_path}',model_platform:'tensorflow',model_version_policy:{{specific:{{{versions}}}}}}}",
+    "versions": "versions: {version}"
+}

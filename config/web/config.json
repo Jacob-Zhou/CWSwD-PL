@@ -1,0 +1,13 @@
+{
+    "server_url": "localhost:8500",
+    "dict_file": "data/dict/dict_1",
+    "min_word_len": 2,
+    "max_word_len": 5,
+    "vocab_file": "data/pl/PD_ZYD/vocab.txt",
+    "bigram_file": "data/pl/PD_ZYD/bigram.txt",
+    "type_file": "data/pl/type_vocab.txt",
+    "bigram_type_file": "data/pl/type_bigram.txt",
+    "do_lower_case": false,
+    "window_size": 3,
+    "multitag": true
+}

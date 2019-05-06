@@ -1,0 +1,5 @@
+{
+    "dict_file": "data/dict/dict_1",
+    "min_word_len": 2,
+    "max_word_len": 5
+}

@@ -1,0 +1,30 @@
+{
+    "attend_input":{
+        "standard": {
+            "pd": {"name": "pku", "versions": [0], "path":"pd_l2_clip"}
+        },
+        "name": "attend_input",
+        "base_path": "/models/serving/attend_input"
+    },
+    "baseline":{
+        "standard": {
+            "pd": {"name": "pku", "versions": [0], "path":"pd_l2_clip"}
+        },
+        "name": "baseline",
+        "base_path": "/models/serving/baseline"
+    },
+    "dict_concat":{
+        "standard": {
+            "pd": {"name": "pku", "versions": [0], "path":"pd_l2_clip"}
+        },
+        "name": "dict_concat",
+        "base_path": "/models/serving/dict_concat"
+    },
+    "dict_hyper":{
+        "standard": {
+            "pd": {"name": "pku", "versions": [0], "path":"pd_l2_clip"}
+        },
+        "name": "dict_hyper",
+        "base_path": "/models/serving/dict_hyper"
+    }
+}

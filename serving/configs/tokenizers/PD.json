@@ -1,0 +1,8 @@
+{
+    "vocab_file": "data/pl/PD_ZYD/vocab.txt",
+    "bigram_file": "data/pl/PD_ZYD/bigram.txt",
+    "type_file": "data/pl/type_vocab.txt",
+    "bigram_type_file": "data/pl/type_bigram.txt",
+    "do_lower_case": false,
+    "window_size": 3
+}
