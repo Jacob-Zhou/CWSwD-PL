@@ -4,36 +4,40 @@ import six
 import tensorflow as tf
 
 import utils
+from process.feature_extractor import FeatureExtractor
 
 
-def load_dict(dictionary_files):
-    """Loads a vocabulary file into a dictionary."""
-    dictionary = collections.OrderedDict()
-    dictionary_files = dictionary_files.split(",")
-    for dictionary_file in dictionary_files:
-        if not str.isspace(dictionary_file):
-            with tf.gfile.GFile(dictionary_file, "r") as reader:
-                while True:
-                    token = utils.convert_to_unicode(reader.readline())
-                    if not token:
-                        break
-                    token = token.strip().split(" ")
-                    if len(token) == 2:
-                        dictionary[token[0]] = token[1]
-                    else:
-                        dictionary[token[0]] = 1
-    return dictionary
-
-
-class BasicDictionaryBuilder:
+class DictionaryFeatureExtractor(FeatureExtractor):
     def __init__(self, dictionary_file):
-        self.dictionary = load_dict(dictionary_file)
+        self.dictionary = self.load_dict(dictionary_file)
 
     def extract(self, tokens):
         raise NotImplementedError()
 
+    def restore(self, ids):
+        return ids
 
-class DefaultDictionaryBuilder(BasicDictionaryBuilder):
+    @staticmethod
+    def load_dict(dictionary_files):
+        """Loads a vocabulary file into a dictionary."""
+        dictionary = collections.OrderedDict()
+        dictionary_files = dictionary_files.split(",")
+        for dictionary_file in dictionary_files:
+            if not str.isspace(dictionary_file):
+                with tf.gfile.GFile(dictionary_file, "r") as reader:
+                    while True:
+                        token = utils.convert_to_unicode(reader.readline())
+                        if not token:
+                            break
+                        token = token.strip().split(" ")
+                        if len(token) == 2:
+                            dictionary[token[0]] = token[1]
+                        else:
+                            dictionary[token[0]] = 1
+        return dictionary
+
+
+class DefaultDictionaryFeatureExtractor(DictionaryFeatureExtractor):
     def __init__(self, dictionary_file, min_word_len, max_word_len):
         if not max_word_len > min_word_len:
             raise ValueError("min word length should smaller than max word length")
@@ -43,7 +47,7 @@ class DefaultDictionaryBuilder(BasicDictionaryBuilder):
         if six.PY3:
             super().__init__(dictionary_file)
         else:
-            super(BasicDictionaryBuilder, self).__init__(dictionary_file)
+            super(DictionaryFeatureExtractor, self).__init__(dictionary_file)
 
     def extract(self, tokens):
         result = []

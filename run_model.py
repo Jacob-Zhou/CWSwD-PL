@@ -1,14 +1,12 @@
 import random
 from datetime import datetime
 
+import models.ModelAdapter
 import utils
-import os
 from models import SegmentModel
 import tensorflow as tf
-import process
+from process import feature_builder, dataset
 import numpy as np
-from checkmate import BestCheckpointSaver, get_all_checkpoint
-import heapq
 
 from prepare import prepare_form_config
 
@@ -86,43 +84,63 @@ def main(_):
     if not FLAGS.do_train and not FLAGS.do_eval and not FLAGS.do_predict:
         raise ValueError(
             "At least one of `train`, `eval` or `predict' must be select.")
-    model_class, config, dim_info, dict_builder, processor, tokenizer, data_augmenter = prepare_form_config(FLAGS)
+    model_class, config, dim_info, processor, extractors, data_augmenter = prepare_form_config(FLAGS)
+    test_dataset_map = {}
+    cxt_feature_extractor = extractors["input_ids"]
+    feat_builder = feature_builder.FeatureBuilder(extractors=extractors,
+                                                  label_map=processor.get_labels())
     train_features = []
-    dev_features = []
-    part_label_features = []
-    test_features_map = {}
+    part_label_dataset = None
+    train_dataset = None
+    dev_dataset = None
     if FLAGS.do_train:
-        train_examples = processor.get_train_examples(FLAGS.data_dir)
-        train_features = process.convert_examples_to_features(
-            examples=train_examples, tokenizer=tokenizer, dict_builder=dict_builder,
-            label_map=processor.get_labels())
+        train_examples = processor.get_examples(data_dir=FLAGS.data_dir, example_type="train")
+        train_features = feat_builder.build_features_from_examples(examples=train_examples)
+        train_dataset = dataset.PaddingDataset(train_features, batch_size=FLAGS.train_batch_size,
+                                               dim_info=dim_info)
         del train_examples
     if FLAGS.do_eval:
-        dev_examples = processor.get_dev_examples(FLAGS.data_dir)
-        dev_features = process.convert_examples_to_features(
-            examples=dev_examples, tokenizer=tokenizer, dict_builder=dict_builder,
-            label_map=processor.get_labels())
+        dev_examples = processor.get_examples(data_dir=FLAGS.data_dir, example_type="dev")
+        dev_features = feat_builder.build_features_from_examples(examples=dev_examples)
+        dev_dataset = dataset.PaddingDataset(dev_features, batch_size=FLAGS.eval_batch_size,
+                                             dim_info=dim_info)
         del dev_examples
+
     if FLAGS.pl_domain is not None and FLAGS.do_train:
         if not FLAGS.multitag:
             raise ValueError("part label train must use multi tag!")
-        part_label_examples = processor.get_pl_examples(FLAGS.data_dir, FLAGS.pl_domain)
-        part_label_features = process.convert_examples_to_features(
-            examples=part_label_examples, tokenizer=tokenizer, dict_builder=dict_builder,
-            label_map=processor.get_labels())
+        part_label_examples = processor.get_examples(data_dir=FLAGS.data_dir, example_type="pl", domain=FLAGS.pl_domain)
+        part_label_features = feat_builder.build_features_from_examples(examples=part_label_examples)
+        if FLAGS.mix_pl_data:
+            if FLAGS.corpus_weighting:
+                part_label_dataset = dataset.CorpusWeightingDataset([train_features, part_label_features],
+                                                                    [10000, 10000], batch_size=FLAGS.train_batch_size,
+                                                                    dim_info=dim_info)
+            else:
+                part_label_dataset = dataset.BatchMixDataset([train_features, part_label_features],
+                                                             [1, 5], batch_size=FLAGS.train_batch_size,
+                                                             dim_info=dim_info)
+        else:
+            part_label_dataset = dataset.PaddingDataset(part_label_features, batch_size=FLAGS.train_batch_size,
+                                                        dim_info=dim_info)
+
         del part_label_examples
     if FLAGS.do_predict:
         if FLAGS.test_domain is not None:
             domains = FLAGS.test_domain.split(",")
-            test_features_map = {domain: process.convert_examples_to_features(
-                examples=processor.get_test_examples(FLAGS.data_dir, domain),
-                tokenizer=tokenizer, dict_builder=dict_builder,
-                label_map=processor.get_labels()) for domain in domains}
+            test_dataset_map = {domain: dataset.PaddingDataset(
+                feat_builder.build_features_from_examples(
+                    examples=processor.get_examples(data_dir=FLAGS.data_dir, example_type="test", domain=domain)),
+                batch_size=FLAGS.predict_batch_size,
+                dim_info=dim_info
+            ) for domain in domains}
         else:
-            test_features_map = {"test": process.convert_examples_to_features(
-                examples=processor.get_test_examples(FLAGS.data_dir, None),
-                tokenizer=tokenizer, dict_builder=dict_builder,
-                label_map=processor.get_labels())}
+            test_dataset_map = {"test": dataset.PaddingDataset(
+                feat_builder.build_features_from_examples(
+                    examples=processor.get_examples(data_dir=FLAGS.data_dir, example_type="test")),
+                batch_size=FLAGS.predict_batch_size,
+                dim_info=dim_info
+            )}
 
     sess_config = tf.ConfigProto()
     sess_config.gpu_options.per_process_gpu_memory_fraction = FLAGS.gpu_memory
@@ -131,10 +149,11 @@ def main(_):
         tf.set_random_seed(31415926)
 
         # train & eval
-        model = SegmentModel.LowLevelModel(model_class,
-                                           dim_info=dim_info,
-                                           config=config, init_checkpoint=FLAGS.init_checkpoint, tokenizer=tokenizer,
-                                           init_embedding=FLAGS.init_embedding, learning_rate=FLAGS.learning_rate)
+        model = models.ModelAdapter.ModelAdapter(model_class,
+                                                 dim_info=dim_info,
+                                                 config=config, init_checkpoint=FLAGS.init_checkpoint,
+                                                 tokenizer=cxt_feature_extractor,
+                                                 init_embedding=FLAGS.init_embedding, learning_rate=FLAGS.learning_rate)
 
         sess.run(tf.global_variables_initializer())
 
@@ -146,11 +165,11 @@ def main(_):
 
         if FLAGS.do_train:
 
-            saver = BestCheckpointSaver(
-                save_dir=FLAGS.output_dir,
-                num_to_keep=3,
-                maximize=True
-            )
+            # saver = BestCheckpointSaver(
+            #     save_dir=FLAGS.output_dir,
+            #     num_to_keep=3,
+            #     maximize=True
+            # )
             best_valid_f1 = 0.
             best_epoch = 0
             best_heap = []
@@ -170,26 +189,22 @@ def main(_):
                 if 25 <= epoch:
                     model.assign_lr(sess, FLAGS.learning_rate * config.lr_decay ** 4)
 
-                if len(part_label_features) == 0:
-                    _, _, _, total_loss, total_step = full_label_running(
-                        sess, model, train_features, dim_info, config,
-                        batch_size=FLAGS.train_batch_size, is_training=True, show_info=True)
+                if part_label_dataset is None:
+                    _, _, _, total_loss, total_step = dataset_running(
+                        sess, model, train_dataset, dim_info, config, is_training=True, show_info=True)
                 else:
                     if FLAGS.mix_pl_data:
-                        total_loss, total_step = mix_training(
-                            sess, model, train_features, part_label_features, dim_info, config,
-                            batch_size=FLAGS.train_batch_size, batch_base=not FLAGS.corpus_weighting, show_info=True)
+                        total_loss, total_step = dataset_running(
+                            sess, model, part_label_dataset, dim_info, config, is_training=True, show_info=True)
                     else:
                         total_pl_loss = 0
                         total_pl_step = 0
                         if epoch % FLAGS.whole_pl_training_epoch == 0:
-                            total_pl_loss, total_pl_step = part_label_training(
-                                sess, model, part_label_features, dim_info, config,
-                                batch_size=FLAGS.train_batch_size, show_info=True)
+                            total_pl_loss, total_pl_step = dataset_running(
+                            sess, model, part_label_dataset, dim_info, config, is_training=True, show_info=True)
 
-                        _, _, _, total_loss, total_step = full_label_running(
-                            sess, model, train_features, dim_info, config,
-                            batch_size=FLAGS.train_batch_size, is_training=True, show_info=True)
+                        _, _, _, total_loss, total_step = dataset_running(
+                            sess, model, train_dataset, dim_info, config, is_training=True, show_info=True)
 
                         total_loss += total_pl_loss
                         total_step += total_pl_step
@@ -200,145 +215,75 @@ def main(_):
                     f"Epoch: {epoch} Average Loss: {avg_loss} ({(now_time - start_time).total_seconds():.2f} sec)")
 
                 if FLAGS.do_eval:
-                    dev_ground_true, dev_prediction, dev_texts, dev_loss, dev_step = full_label_running(
-                        sess, model, dev_features, dim_info, config, batch_size=FLAGS.eval_batch_size,
+                    dev_ground_true, dev_prediction, dev_texts, dev_loss, dev_step = dataset_running(
+                        sess, model, dev_dataset, dim_info, config,
                         is_training=False)
 
-                    p, r, f = processor.evaluate_word_PRF(dev_prediction, dev_ground_true)
+                    p, r, f = processor.evaluate(dev_prediction, dev_ground_true)
 
-                    # if f > best_valid_f1:
-                    #     best_valid_f1 = f
+                    # if saver.handle(f, sess, epoch, FLAGS.pl_domain if FLAGS.pl_domain else None):
+                    #     heapq.heappush(best_heap, (f, epoch))
+                    #     if len(best_heap) > 3:
+                    #         heapq.heappop(best_heap)
                     #     best_epoch = epoch
-                    #     saver.save(sess, model_path)
-                    #     if FLAGS.debug_mode:
-                    #         tokens = list(map(lambda x: tokenizer.convert_ids_to_tokens(x), dev_texts))
-                    #         texts = [list(map(lambda t: utils.printable_text(t), token)) for token in tokens]
-                    #         processor.convert_word_segmentation(texts, dev_prediction, FLAGS.output_dir, "dev")
-                    #         processor.convert_word_segmentation(texts, dev_ground_true, FLAGS.output_dir, "dev_golden")
                     # else:
                     #     if epoch - best_epoch >= FLAGS.early_stop_epochs and FLAGS.early_stop:
-                    #         tf.logging.info(f"Early Stop Best F1: {best_valid_f1}")
-                    #         break
-                    if saver.handle(f, sess, epoch, FLAGS.pl_domain if FLAGS.pl_domain else None):
-                        heapq.heappush(best_heap, (f, epoch))
-                        if len(best_heap) > 3:
-                            heapq.heappop(best_heap)
-                        best_epoch = epoch
-                    else:
-                        if epoch - best_epoch >= FLAGS.early_stop_epochs and FLAGS.early_stop:
-                                tf.logging.info(f"Early Stop Best F1: {best_valid_f1}")
-                                break
+                    #             tf.logging.info(f"Early Stop Best F1: {best_valid_f1}")
+                    #             break
 
                     tf.logging.info("Epoch: %d Dev Dataset Precision: %.5f Recall: %.5f F1: %.5f" % (epoch, p, r, f))
                     for rank, (top_f, top_epoch) in enumerate(sorted(best_heap, reverse=True)):
                         tf.logging.info("Top %d: Epoch: %d F1: %.5f" % (rank + 1, top_epoch, top_f))
 
                 if FLAGS.debug_mode:
-                    for domain, test_features in test_features_map.items():
-                        predict_ground_true, predict_prediction, predict_texts, predict_loss, predict_step = full_label_running(
-                            sess, model, test_features, dim_info, config,
-                            batch_size=FLAGS.predict_batch_size, is_training=False)
-                        p, r, f = processor.evaluate_word_PRF(predict_prediction, predict_ground_true)
+                    for domain, test_dataset in test_dataset_map.items():
+                        predict_ground_truth, predict_prediction, predict_texts, predict_loss, predict_step = dataset_running(
+                            sess, model, test_dataset, dim_info, config, is_training=False)
+                        p, r, f = processor.evaluate(predict_prediction, predict_ground_truth)
                         tf.logging.info('%s Domain: %s Test: P:%f R:%f F1:%f' % (FLAGS.data_dir, domain, p, r, f))
-                        tokens = list(map(lambda x: tokenizer.convert_ids_to_tokens(x), predict_texts))
+                        tokens = list(map(lambda x: cxt_feature_extractor.restore(x), predict_texts))
                         texts = [list(map(lambda t: utils.printable_text(t), token)) for token in tokens]
-                        processor.convert_word_segmentation(texts, predict_prediction, FLAGS.output_dir,
-                                                            f"{domain}_predict")
-                        processor.convert_word_segmentation(texts, predict_ground_true,
-                                                            FLAGS.output_dir, f"{domain}_predict_golden")
+                        processor.segment(texts, predict_prediction, FLAGS.output_dir,
+                                     f"{domain}_predict")
+                        processor.segment(texts, predict_ground_truth,
+                                     FLAGS.output_dir, f"{domain}_predict_golden")
 
             now_time = datetime.now()
             tf.logging.info(f"Train Spent: {now_time - very_start_time} sec")
 
-        if FLAGS.do_predict:
-            checkpoints = get_all_checkpoint(FLAGS.output_dir)
-            saver = tf.train.Saver()
-            for epoch, checkpoint in sorted(checkpoints):
-                saver.restore(sess, checkpoint)
-                print(f"Check Point at Epoch {epoch}:")
-                # test
-                for domain, test_features in test_features_map.items():
-                    predict_ground_true, predict_prediction, predict_texts, predict_loss, predict_step = full_label_running(
-                        sess, model, test_features, dim_info, config,
-                        batch_size=FLAGS.predict_batch_size, is_training=False)
-                    p, r, f = processor.evaluate_word_PRF(predict_prediction, predict_ground_true)
-                    print('%s Domain: %s Test: P:%f R:%f F1:%f' % (FLAGS.data_dir, domain, p, r, f))
-                    tokens = list(map(lambda x: tokenizer.convert_ids_to_tokens(x), predict_texts))
-                    texts = [list(map(lambda t: utils.printable_text(t), token)) for token in tokens]
-                    processor.convert_word_segmentation(texts, predict_prediction, FLAGS.output_dir, f"{domain}_predict")
-                    processor.convert_word_segmentation(texts, predict_ground_true,
-                                                        FLAGS.output_dir, f"{domain}_predict_golden")
+        # if FLAGS.do_predict:
+        #     checkpoints = get_all_checkpoint(FLAGS.output_dir)
+        #     saver = tf.train.Saver()
+        #     for epoch, checkpoint in sorted(checkpoints):
+        #         saver.restore(sess, checkpoint)
+        #         print(f"Check Point at Epoch {epoch}:")
+        #         # test
+        #         for domain, test_dataset in test_dataset_map.items():
+        #             predict_ground_truth, predict_prediction, predict_texts, predict_loss, predict_step = dataset_running(
+        #                 sess, model, test_dataset, dim_info, config, is_training=False)
+        #             p, r, f = processor.evaluate(predict_prediction, predict_ground_truth)
+        #             print('%s Domain: %s Test: P:%f R:%f F1:%f' % (FLAGS.data_dir, domain, p, r, f))
+        #             tokens = list(map(lambda x: cxt_feature_extractor.restore(x), predict_texts))
+        #             texts = [list(map(lambda t: utils.printable_text(t), token)) for token in tokens]
+        #             processor.segment(texts, predict_prediction, FLAGS.output_dir, f"{domain}_predict")
+        #             processor.segment(texts, predict_ground_truth,
+        #                          FLAGS.output_dir, f"{domain}_predict_golden")
 
 
-def mix_training(sess, model, features, pl_features, dim_info, config, batch_size, batch_base=False, show_info=False):
+def dataset_running(sess, model, running_dataset, dim_info, config, is_training=False, show_info=False):
     total_loss = 0.
     step = 0
-    start_time = datetime.now()
-    if batch_base:
-        data_iterator = utils.data_batch_base_mix_iterator(features, pl_features,
-                                                           dim_info=dim_info, batch_size=batch_size)
-    else:
-        data_iterator = utils.data_iterator(features, pl_features=pl_features,
-                                            dim_info=dim_info, batch_size=batch_size, shuffle=True)
-
-    for step, (input_ids, input_dicts, label_ids, seq_length) in enumerate(data_iterator):
-        loss, _ = sess.run(
-            [model.total_loss, model.train_op],
-            feed_dict={model.input_ids: input_ids,
-                       model.input_dicts: input_dicts,
-                       model.label_ids: label_ids,
-                       model.seq_length: seq_length,
-                       model.dropout_keep_prob: 1 - config.hidden_dropout_prob}
-        )
-
-        total_loss += loss
-        step += 1
-        if step % 100 == 0 and show_info:
-            now_time = datetime.now()
-            tf.logging.info(
-                f"Step: {step} Loss: {total_loss / step} ({(now_time - start_time).total_seconds():.2f} sec)")
-            start_time = now_time
-    return total_loss, step
-
-
-def part_label_training(sess, model, features, dim_info, config, batch_size, show_info=False):
-    total_loss = 0.
-    step = 0
-    start_time = datetime.now()
-    for step, (input_ids, input_dicts, label_ids, seq_length) in enumerate(
-            utils.data_iterator(features, dim_info=dim_info, batch_size=batch_size, shuffle=True)):
-        loss, _ = sess.run(
-            [model.loss, model.pl_train_op],
-            feed_dict={model.input_ids: input_ids,
-                       model.input_dicts: input_dicts,
-                       model.label_ids: label_ids,
-                       model.seq_length: seq_length,
-                       model.dropout_keep_prob: 1 - config.hidden_dropout_prob}
-        )
-
-        total_loss += loss
-        step += 1
-        if step % 100 == 0 and show_info:
-            now_time = datetime.now()
-            tf.logging.info(
-                f"Step: {step} Loss: {total_loss / step} ({(now_time - start_time).total_seconds():.2f} sec)")
-            start_time = now_time
-    return total_loss, step
-
-
-def full_label_running(sess, model, features, dim_info, config, batch_size, is_training=False, show_info=False):
-    total_loss = 0.
-    step = 0
-    ground_true = []
+    ground_truth = []
     predictions = []
     texts = []
     start_time = datetime.now()
-    for step, (input_ids, input_dicts, label_ids, seq_length) in enumerate(
-            utils.data_iterator(features, dim_info=dim_info, batch_size=batch_size, shuffle=is_training)):
+    for step, (input_features, label_ids, seq_length) in enumerate(running_dataset):
+        input_ids = input_features["input_ids"]
+        input_dicts = input_features["input_dicts"]
         if is_training:
             loss, length, prediction, _ = sess.run(
                 [model.total_loss, model.seq_length, model.prediction, model.train_op],
-                feed_dict={model.input_ids: input_ids,
+                feed_dict={model.input_features: input_features,
                            model.input_dicts: input_dicts,
                            model.label_ids: label_ids,
                            model.seq_length: seq_length,
@@ -356,19 +301,25 @@ def full_label_running(sess, model, features, dim_info, config, batch_size, is_t
 
         total_loss += loss
         step += 1
-        true_batch_size = len(input_ids)
-        if dim_info.label_dim != 1:
-            ground_true.extend([np.argmax(label_ids[i, :length[i]], axis=-1).tolist() for i in range(true_batch_size)])
-        else:
-            ground_true.extend([label_ids[i, :length[i]].tolist() for i in range(true_batch_size)])
-        predictions.extend([prediction[i, :length[i]].tolist() for i in range(true_batch_size)])
-        texts.extend([input_ids[i, :length[i].tolist()] for i in range(true_batch_size)])
+
         if step % 100 == 0 and show_info:
             now_time = datetime.now()
             tf.logging.info(
                 f"Step: {step} Loss: {total_loss / step} ({(now_time - start_time).total_seconds():.2f} sec)")
             start_time = now_time
-    return ground_true, predictions, texts, total_loss, step
+
+        if not is_training:
+            true_batch_size = len(input_ids)
+            if dim_info.label_dim != 1:
+                ground_truth.extend([np.argmax(label_ids[i, :length[i]], axis=-1).tolist() for i in range(true_batch_size)])
+            else:
+                ground_truth.extend([label_ids[i, :length[i]].tolist() for i in range(true_batch_size)])
+            predictions.extend([prediction[i, :length[i]].tolist() for i in range(true_batch_size)])
+            texts.extend([input_ids[i, :length[i].tolist()] for i in range(true_batch_size)])
+    if is_training:
+        return total_loss, step
+    else:
+        return ground_truth, predictions, texts, total_loss, step
 
 
 if __name__ == "__main__":

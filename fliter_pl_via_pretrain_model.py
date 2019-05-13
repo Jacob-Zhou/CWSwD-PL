@@ -1,13 +1,13 @@
 import codecs
 from datetime import datetime
 
+import models.ModelAdapter
 import utils
 import os
 
 from checkmate import get_all_checkpoint
 from models import SegmentModel
 import tensorflow as tf
-import process
 
 from prepare import prepare_form_config
 
@@ -78,15 +78,17 @@ def file_based_input_builder(input_file, batch_size, dim_info):
 
 def main(_):
     tf.logging.set_verbosity(tf.logging.INFO)
-    model_class, config, dim_info, dict_builder, processor, tokenizer, data_augmenter = prepare_form_config(FLAGS)
+    model_class, config, dim_info, data, extractors, data_augmenter = prepare_form_config(FLAGS)
+    cxt_feature_extractor = extractors["input_ids"]
 
     part_label_file = os.path.join(FLAGS.data_dir, "part_label.tf_record")
 
     # if FLAGS.plain_pl:
-    #     processor = process.PlainLineProcessor()
-    #     part_label_examples = processor.get_examples(FLAGS.data_dir, f"{FLAGS.pl_domain}_domain")
+    #     processor = process.PlainLineData()
+    #     part_label_examples = processor.get_examples(data_dir=FLAGS.data_dir, file_name=f"{FLAGS.pl_domain}_domain")
     # else:
-    #     part_label_examples = list(processor.get_pl_examples(FLAGS.data_dir, FLAGS.pl_domain))
+    #     part_label_examples = list(processor.get_examples(data_dir=FLAGS.data_dir, example_type="pl",
+    #                                                       domain=FLAGS.pl_domain))
     #
     # process.file_based_convert_examples_to_features(
     #     examples=part_label_examples, tokenizer=tokenizer, dict_builder=dict_builder,
@@ -98,10 +100,10 @@ def main(_):
         input_dataset = file_based_input_builder(part_label_file, FLAGS.batch_size, dim_info)
 
         # train & eval
-        model = SegmentModel.LowLevelModel(model_class,
-                                           dim_info=dim_info,
-                                           config=config, init_checkpoint=None, tokenizer=tokenizer,
-                                           init_embedding=None, learning_rate=0.01)
+        model = models.ModelAdapter.ModelAdapter(model_class,
+                                                 dim_info=dim_info,
+                                                 config=config, init_checkpoint=None, tokenizer=cxt_feature_extractor,
+                                                 init_embedding=None, learning_rate=0.01)
 
         saver = tf.train.Saver()
         epoch, checkpoint = get_all_checkpoint(FLAGS.pretrain_dir)[-1]
@@ -109,7 +111,7 @@ def main(_):
         saver.restore(sess, checkpoint)
         # saver.restore(sess, model_path)
 
-        full_label_running(sess, model, input_dataset, FLAGS.output_dir, tokenizer=tokenizer)
+        full_label_running(sess, model, input_dataset, FLAGS.output_dir, tokenizer=cxt_feature_extractor)
 
 
 def keep(gt, pred):
@@ -182,7 +184,7 @@ def full_label_running(sess, model, dataset, output_dir, show_info=True, tokeniz
             ground_truth.extend([label_ids[i, :length[i]].tolist() for i in range(true_batch_size)])
             predictions.extend([prediction[i, :length[i]].tolist() for i in range(true_batch_size)])
             texts_ids = [input_ids[i, :length[i].tolist()] for i in range(true_batch_size)]
-            tokens = list(map(lambda x: tokenizer.convert_ids_to_tokens(x), texts_ids))
+            tokens = list(map(lambda x: tokenizer.restore(x), texts_ids))
             texts = [list(map(lambda t: utils.printable_text(t), token)) for token in tokens]
             for index, (gt, pred, txt, inputs) in enumerate(zip(ground_truth, predictions, texts, input_ids)):
                 if keep(gt, pred):

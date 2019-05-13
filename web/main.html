@@ -92,11 +92,10 @@
                             $btn.button('reset');
                             hasSubmit = false;
                         }, 10000);
-                        $.post("/segment",
+                        $.post("/v0/segment",
                             {
                                 "input": app.input_text,
-                                "model": app.selectedOptions[0],
-                                "standard": app.selectedOptions[1]
+                                "solution": app.selectedOptions[app.selectedOptions.length - 1]
                             }, function (data) {
                                 hasSubmit = false;
                                 if (data.state === "success") {
@@ -110,8 +109,6 @@
                 },
             }
         });
-
-
     })
 </script>
 </body>

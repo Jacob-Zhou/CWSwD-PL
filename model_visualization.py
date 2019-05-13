@@ -1,16 +1,12 @@
 import json
-import os
 
-from matplotlib import gridspec
-
-import process
+import models.ModelAdapter
+from process import feature_builder
 from models import SegmentModel
 import tensorflow as tf
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import seaborn as sns
 from prepare import prepare_form_config
-import numpy as np
 
 flags = tf.flags
 
@@ -21,23 +17,24 @@ flags.DEFINE_string("pretrain_dir", None, "")
 
 def main(_):
     tf.logging.set_verbosity(tf.logging.INFO)
-    model_class, config, dim_info, dict_builder, processor, tokenizer, data_augmenter = prepare_form_config(FLAGS)
+    model_class, config, dim_info, data, extractors, data_augmenter = prepare_form_config(FLAGS)
+    cxt_feature_extractor = extractors["input_ids"]
     # ckpt_state = tf.train.get_checkpoint_state(FLAGS.pretrain_dir)
     # model_path = os.path.join(FLAGS.pretrain_dir,
     #                           os.path.basename(ckpt_state.model_checkpoint_path))
     model_path = "output\\nova_dot\\ctb_l2_clip\\zx\\zx_model.ckpt-115"
     # model_path = "output\\baseline\\pd\\model.ckpt-60"
-    processor = process.PlainLineProcessor()
-    examples = processor.get_single_example("私营企业主成为社会主义事业的建设者")
-    example = list(examples)[0]
-    feature = process.convert_single_example(0, example, tokenizer=tokenizer, dict_builder=dict_builder,
-                                             label_map=processor.get_labels())
+    processor = data.PlainLineData()
+    feat_builder = feature_builder.FeatureBuilder(extractors=extractors,
+                                                  label_map=data.get_labels())
+    example = processor.get_examples(data="私营企业主成为社会主义事业的建设者", example_type="single")
+    feature = feat_builder.build_single_example(0, example)
     with tf.Graph().as_default() as graph, tf.Session() as sess:
         # train & eval
-        model = SegmentModel.LowLevelModel(model_class,
-                                           dim_info=dim_info,
-                                           config=config, init_checkpoint=None, tokenizer=tokenizer,
-                                           init_embedding=None, learning_rate=0.01)
+        model = models.ModelAdapter.ModelAdapter(model_class,
+                                                 dim_info=dim_info,
+                                                 config=config, init_checkpoint=None, tokenizer=cxt_feature_extractor,
+                                                 init_embedding=None, learning_rate=0.01)
         saver = tf.train.Saver()
         saver.restore(sess, model_path)
         feature_json = {

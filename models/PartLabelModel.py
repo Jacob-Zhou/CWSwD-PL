@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import tensorflow as tf
-from .ModelConfig import ModelConfig
 from .SegmentModel import SegmentModel
 from tensorflow.contrib import rnn
 from tensorflow.contrib import layers
@@ -14,7 +13,7 @@ class PartLabelModel(SegmentModel):
     PartLabelModel 模型
     """
 
-    def __init__(self, config, features, dropout_keep_prob, init_embedding=None, bi_embedding=None):
+    def __init__(self, config, features, dropout_keep_prob, init_embeddings=None):
         """PartLabelModel 的构造器.
 
         Args:
@@ -38,7 +37,7 @@ class PartLabelModel(SegmentModel):
         self.seq_length = seq_length
 
         x, batch_size, feat_size = model_utils.input_embedding(
-            input_ids, config, init_embedding=init_embedding, bi_embedding=bi_embedding)
+            input_ids, config, init_embeddings=init_embeddings)
         x = tf.reshape(x, [batch_size, -1, feat_size * config.embedding_size])
         x = tf.nn.dropout(x, dropout_keep_prob)
 

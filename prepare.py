@@ -2,16 +2,13 @@ import json
 
 import tensorflow as tf
 
-import augmenter
-import dictionary_builder
 import models
-import process
-import tokenization
-from models import ModelConfig
+from process import data_processor, dictionary_feature_extractor, augmenter, context_feature_extractor
 import numpy as np
-import os
+from collections import OrderedDict
 
-from utils import DimInfo
+from process.feature_builder import DimInfo
+from utils import Config
 
 flags = tf.flags
 
@@ -81,7 +78,7 @@ flags.DEFINE_float(
 flags.DEFINE_bool("multitag", False,
                   "how the label represent")
 
-flags.DEFINE_string("processor", "CWSProcessor", "BiLabelProcessor or CWSProcessor")
+flags.DEFINE_string("data_processor", "CWSDataProcessor", "BiLabelProcessor or CWSDataProcessor")
 
 ## Noise Matrix for Nova Model
 flags.DEFINE_string("noise_matrix", None, "Noise Matrix for Nova Model")
@@ -90,22 +87,20 @@ flags.DEFINE_float("inside_factor", 1, "Noise Matrix for Nova Model")
 
 def prepare_form_config(flags):
     tf.gfile.MakeDirs(flags.output_dir)
-    processor = getattr(process, flags.processor)()
+    processor = getattr(data_processor, flags.data_processor)()
     if flags.bigram_file is None:
-        tokenizer = tokenization.WindowTokenizer(
-            vocab_file=flags.vocab_file,
-            do_lower_case=flags.do_lower_case, window_size=flags.window_size)
+        cxt_feature_extractor = context_feature_extractor.WindowContextFeatureExtractor(
+            vocab_file=flags.vocab_file, window_size=flags.window_size)
     else:
-        tokenizer = tokenization.WindowBigramTokenizer(
-            vocab_file=flags.vocab_file, bigram_file=flags.bigram_file,
-            do_lower_case=flags.do_lower_case, window_size=flags.window_size)
+        cxt_feature_extractor = context_feature_extractor.WindowBigramContextFeatureExtractor(
+            vocab_file=flags.vocab_file, bigram_file=flags.bigram_file, window_size=flags.window_size)
     if flags.multitag:
-        processor = process.MultiTagProcessor()
-    dict_builder = None
+        processor = data_processor.MultiTagDataProcessor()
+    dict_feature_extractor = None
     if flags.dict_file is not None:
-        dict_builder = dictionary_builder.DefaultDictionaryBuilder(flags.dict_file,
-                                                                   min_word_len=flags.min_word_len,
-                                                                   max_word_len=flags.max_word_len)
+        dict_feature_extractor = dictionary_feature_extractor.DefaultDictionaryFeatureExtractor(flags.dict_file,
+                                                                                                min_word_len=flags.min_word_len,
+                                                                                                max_word_len=flags.max_word_len)
     data_augmenter = augmenter.DefaultAugmenter(flags.dict_augment_rate)
     cls = None
     if flags.model == "baseline":
@@ -114,8 +109,6 @@ def prepare_form_config(flags):
         cls = models.PartLabelModel
     elif flags.model == "aaai":
         cls = models.AAAIModel
-    elif flags.model == "pytorch":
-        cls = models.PytorchModel
     elif flags.model == "dict_concat":
         cls = models.DictConcatModel
     elif flags.model == "dict_hyper":
@@ -127,13 +120,12 @@ def prepare_form_config(flags):
     elif flags.model == "dual_dict":
         cls = models.DictConcatModel
         assert flags.bigram_file is not None, "dual_dict must need bigram file"
-        tokenizer = tokenization.WindowNgramTokenizer(
-            vocab_file=flags.vocab_file, ngram_file=flags.bigram_file,
-            do_lower_case=flags.do_lower_case, window_size=flags.window_size)
-        if dict_builder is None:
-            dict_builder = dictionary_builder.DefaultDictionaryBuilder(flags.bigram_file,
-                                                                       min_word_len=flags.min_word_len,
-                                                                       max_word_len=flags.max_word_len)
+        cxt_feature_extractor = context_feature_extractor.WindowNgramContextFeatureExtractor(
+            vocab_file=flags.vocab_file, ngram_file=flags.bigram_file, window_size=flags.window_size)
+        if dict_feature_extractor is None:
+            dict_feature_extractor = dictionary_feature_extractor.DefaultDictionaryFeatureExtractor(flags.bigram_file,
+                                                                                                    min_word_len=flags.min_word_len,
+                                                                                                    max_word_len=flags.max_word_len)
         data_augmenter = augmenter.DualAugmenter(flags.window_size)
     if flags.traditional_template:
         if flags.vocab_file is None or flags.bigram_file is None or flags.type_file is None \
@@ -141,18 +133,16 @@ def prepare_form_config(flags):
             raise ValueError("pl must set ...")
 
         if flags.window_size == 1:
-            tokenizer = tokenization.TrTeBiTokenizer(
+            cxt_feature_extractor = context_feature_extractor.TrTeBiContextFeatureExtractor(
                 vocab_file=flags.vocab_file, bigram_file=flags.bigram_file,
-                type_file=flags.type_file, bigram_type_file=flags.bigram_type_file,
-                do_lower_case=flags.do_lower_case)
+                type_file=flags.type_file, bigram_type_file=flags.bigram_type_file)
         else:
-            tokenizer = tokenization.TrTeWinBiTokenizer(
+            cxt_feature_extractor = context_feature_extractor.TrTeWinBiContextFeatureExtractor(
                 vocab_file=flags.vocab_file, bigram_file=flags.bigram_file,
-                type_file=flags.type_file, bigram_type_file=flags.bigram_type_file,
-                do_lower_case=flags.do_lower_case, window_size=flags.window_size)
+                type_file=flags.type_file, bigram_type_file=flags.bigram_type_file, window_size=flags.window_size)
     if cls is None:
         raise ValueError("please use the right model nickname")
-    config = ModelConfig.from_json_file(flags.config_file)
+    config = Config.from_json_file(flags.config_file)
     config.__dict__["multitag"] = flags.multitag
     config.__dict__["traditional_template"] = flags.traditional_template
     if flags.noise_matrix:
@@ -160,11 +150,15 @@ def prepare_form_config(flags):
     else:
         config.__dict__["noise_matrix"] = np.eye(config.num_classes)
     config.__dict__["inside_factor"] = flags.inside_factor
-    dim_info = DimInfo(tokenizer.dim, dict_builder.dim if dict_builder else 1, 4 if flags.multitag else 1)
-    for key, value in tokenizer.size_info.items():
+
+    extractors = OrderedDict({"input_ids": cxt_feature_extractor,
+                              "input_dicts": dict_feature_extractor})
+    dim_info = DimInfo({feature_name: feature.dim for feature_name, feature in extractors.items()},
+                       4 if flags.multitag else 1)
+    for key, value in cxt_feature_extractor.size_info.items():
         config.__dict__[key] = value
-    config.__dict__["input_dim_info"] = tokenizer.dim_info
-    return cls, config, dim_info, dict_builder, processor, tokenizer, data_augmenter
+    config.__dict__["input_dim_info"] = cxt_feature_extractor.dim_detail
+    return cls, config, dim_info, processor, extractors, data_augmenter
 
 
 def get_info(info_file):

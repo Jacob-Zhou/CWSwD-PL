@@ -1,17 +1,12 @@
-import codecs
-import random
-import re
 from datetime import datetime
 
-import utils
 import os
 
-from checkmate import get_best_checkpoint, get_all_checkpoint
+import models.ModelAdapter
+from checkmate import get_all_checkpoint
 from models import SegmentModel
 import tensorflow as tf
-import process
-import preprocess
-import opencc
+from process import data_processor
 import numpy as np
 
 from prepare import prepare_form_config
@@ -82,50 +77,6 @@ def file_based_input_builder(input_file, batch_size, dim_info):
     return d.make_one_shot_iterator()
 
 
-def _create_examples(lines):
-    """Creates examples for the training and dev sets."""
-    re_ENUM = re.compile(r"([-.a-zA-Z0-9]+)")
-    converter = opencc.OpenCC('t2s')
-
-    def _labels_words(p_text_segment):
-        inside_tokens = []
-        inside_labels = []
-        inside_types = []
-        for segment in p_text_segment:
-            hyper_tokens = segment.split()
-            segment_tokens = []
-            for hyper_token in hyper_tokens:
-                hyper_token = hyper_token.strip()
-                if len(hyper_token) > 0:
-                    is_chinese = False
-                    for c in hyper_token:
-                        if preprocess.is_cjk_char(ord(c)):
-                            is_chinese = True
-                            break
-                    if is_chinese:
-                        segment_tokens.extend(list(hyper_token))
-                    else:
-                        segment_tokens.append(hyper_token)
-
-            inside_tokens.extend(segment_tokens)
-            if len(segment_tokens) == 1:
-                inside_labels.extend(["A"])
-            elif len(segment_tokens) > 1:
-                inside_labels.extend(["BS"] + ["A"] * (len(segment_tokens) - 2) + ["ES"])
-            inside_types.extend(list(map(preprocess.get_type, segment_tokens)))
-
-        return inside_tokens, inside_labels, inside_types
-
-    for (i, line) in enumerate(lines):
-        # Only the test set has a header
-        text = str.lower(preprocess.strQ2B(utils.convert_to_unicode(line.strip())))
-        text = converter.convert(text)
-        text = re_ENUM.sub(" \\1 ", text)
-        text_segment = text.split("☃")
-        tokens, labels, types = _labels_words(text_segment)
-        yield process.TypedInputExample(guid="", text=tokens, types=types, labels=labels)
-
-
 def main(_):
     tf.logging.set_verbosity(tf.logging.INFO)
     model_class, config, dim_info, dict_builder, processor, tokenizer, data_augmenter = prepare_form_config(FLAGS)
@@ -133,23 +84,23 @@ def main(_):
     part_label_file = os.path.join(FLAGS.data_dir, f"{FLAGS.pl_domain}_part_label.tf_record")
 
     if FLAGS.plain_pl:
-        part_label_examples = _create_examples(codecs.open(os.path.join(FLAGS.data_dir, f"{FLAGS.pl_domain}_domain"),
-                                                           encoding="UTF-8"))
+        processor = data_processor.PlainLineDataProcessor()
+        part_label_examples = processor.get_examples(data_dir=FLAGS.data_dir, file_name=f"{FLAGS.pl_domain}_domain")
     else:
         part_label_examples = processor.get_pl_examples(FLAGS.data_dir, FLAGS.pl_domain)
-    process.file_based_convert_examples_to_features(
+    data_processor.file_based_convert_examples_to_features(
         examples=part_label_examples, tokenizer=tokenizer, dict_builder=dict_builder,
         label_map=processor.get_labels(), output_file=part_label_file)
 
     train_features = None
-    # train_examples = processor.get_train_examples(FLAGS.data_dir)
+    # train_examples = processor.get_examples(data_dir=FLAGS.data_dir, example_type="train")
     # train_features = process.convert_examples_to_features(
     #     examples=train_examples, tokenizer=tokenizer, dict_builder=dict_builder,
     #     label_map=processor.get_labels())
     # del train_examples
 
     test_features = None
-    # test_examples = processor.get_test_examples(FLAGS.data_dir, FLAGS.pl_domain)
+    # test_examples = processor.get_examples(data_dir=FLAGS.data_dir, example_type="test", domain=FLAGS.pl_domain)
     # test_features = process.convert_examples_to_features(
     #     examples=test_examples, tokenizer=tokenizer, dict_builder=dict_builder,
     #     label_map=processor.get_labels())
@@ -160,10 +111,10 @@ def main(_):
         part_label_dataset = file_based_input_builder(part_label_file, FLAGS.batch_size, dim_info)
 
         # train & eval
-        model = SegmentModel.LowLevelModel(model_class,
-                                           dim_info=dim_info,
-                                           config=config, init_checkpoint=None, tokenizer=tokenizer,
-                                           init_embedding=None, learning_rate=0.01)
+        model = models.ModelAdapter.ModelAdapter(model_class,
+                                                 dim_info=dim_info,
+                                                 config=config, init_checkpoint=None, tokenizer=tokenizer,
+                                                 init_embedding=None, learning_rate=0.01)
 
         saver = tf.train.Saver()
         epoch, checkpoint = get_all_checkpoint(FLAGS.pretrain_dir)[-1]
@@ -181,7 +132,7 @@ def get_noise(sess, model, dim_info, train_features, test_features, pl_dataset, 
     count_i = np.zeros([4])
 
     # for step, (input_ids, input_dicts, label_ids, seq_length) in enumerate(
-    #         utils.data_iterator(test_features, dim_info=dim_info, batch_size=64, shuffle=False)):
+    #         utils.data_iterator(test_features, dim_detail=dim_detail, batch_size=64, shuffle=False)):
     #     loss, length, prediction = sess.run(
     #         [model.total_loss, model.seq_length, model.prediction],
     #         feed_dict={model.input_ids: input_ids,

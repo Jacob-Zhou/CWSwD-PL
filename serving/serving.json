@@ -1,68 +1,76 @@
 {
     "server_url": "localhost:8500",
     "config_template_path": "configs/config.template",
-    "tokenizers": [
+    "context_feature_extractors": [
         {
-            "name": "pd_tokenizer",
-            "config": "configs/tokenizers/PD.json"
+            "name": "pd_cxt_extractor",
+            "config": "configs/context_feature_extractors/PD.json"
         },
         {
-            "name": "ctb_tokenizer",
-            "config": "configs/tokenizers/CTB.json"
+            "name": "msr_cxt_extractor",
+            "config": "configs/context_feature_extractors/MSR.json"
         },
         {
-            "name": "pd_dictgram_tokenizer",
-            "config": "configs/tokenizers/PD_DG.json"
+            "name": "ctb_cxt_extractor",
+            "config": "configs/context_feature_extractors/CTB.json"
         },
         {
-            "name": "ctb_dictgram_tokenizer",
-            "config": "configs/tokenizers/CTB_DG.json"
+            "name": "pd_dictgram_cxt_extractor",
+            "config": "configs/context_feature_extractors/PD_DG.json"
         },
         {
-            "name": "com_tokenizer",
-            "config": "configs/tokenizers/COM.json"
+            "name": "ctb_dictgram_cxt_extractor",
+            "config": "configs/context_feature_extractors/CTB_DG.json"
         },
         {
-            "name": "fin_tokenizer",
-            "config": "configs/tokenizers/FIN.json"
+            "name": "com_cxt_extractor",
+            "config": "configs/context_feature_extractors/COM.json"
         },
         {
-            "name": "med_tokenizer",
-            "config": "configs/tokenizers/MED.json"
+            "name": "fin_cxt_extractor",
+            "config": "configs/context_feature_extractors/FIN.json"
         },
         {
-            "name": "lit_tokenizer",
-            "config": "configs/tokenizers/LIT.json"
+            "name": "med_cxt_extractor",
+            "config": "configs/context_feature_extractors/MED.json"
         },
         {
-            "name": "zx_tokenizer",
-            "config": "configs/tokenizers/ZX.json"
+            "name": "lit_cxt_extractor",
+            "config": "configs/context_feature_extractors/LIT.json"
         },
         {
-            "name": "com_dictgram_tokenizer",
-            "config": "configs/tokenizers/COM_DG.json"
+            "name": "zx_cxt_extractor",
+            "config": "configs/context_feature_extractors/ZX.json"
         },
         {
-            "name": "fin_dictgram_tokenizer",
-            "config": "configs/tokenizers/FIN_DG.json"
+            "name": "com_dictgram_cxt_extractor",
+            "config": "configs/context_feature_extractors/COM_DG.json"
         },
         {
-            "name": "med_dictgram_tokenizer",
-            "config": "configs/tokenizers/MED_DG.json"
+            "name": "fin_dictgram_cxt_extractor",
+            "config": "configs/context_feature_extractors/FIN_DG.json"
         },
         {
-            "name": "lit_dictgram_tokenizer",
-            "config": "configs/tokenizers/LIT_DG.json"
+            "name": "med_dictgram_cxt_extractor",
+            "config": "configs/context_feature_extractors/MED_DG.json"
         },
         {
-            "name": "zx_dictgram_tokenizer",
-            "config": "configs/tokenizers/ZX_DG.json"
+            "name": "lit_dictgram_cxt_extractor",
+            "config": "configs/context_feature_extractors/LIT_DG.json"
+        },
+        {
+            "name": "zx_dictgram_cxt_extractor",
+            "config": "configs/context_feature_extractors/ZX_DG.json"
         }
     ],
-    "dict_builders": [
+    "dictionary_feature_extractors": [
         {
-            "name": "default_dict_builder",
-            "config": "configs/dict_builders/default.json"
+            "name": "default_dict_extractor",
+            "config": "configs/dictionary_feature_extractors/default.json"
+        },
+        {
+            "name": "zx_dict_extractor",
+            "config": "configs/dictionary_feature_extractors/ZX.json"
         }
     ],
     "models": [
@@ -71,27 +79,33 @@
             "standards": [
                 {
                     "name": "pd",
-                    "alias": "PKU",
-                    "tokenizer": "pd_tokenizer",
-                    "dict_builder": "default_dict_builder",
                     "versions": [
                         0
                     ],
                     "path": "pd_l2_clip"
+                },
+                {
+                    "name": "msr",
+                    "versions": [
+                        0
+                    ],
+                    "path": "msr_l2_clip"
+                },
+                {
+                    "name": "ctb",
+                    "versions": [
+                        0
+                    ],
+                    "path": "ctb_l2_clip"
                 }
             ],
-            "alias": "attend_input",
-            "base_path": "/serving/models/attend_input",
-            "multitag": true
+            "base_path": "/serving/models/attend_input"
         },
         {
             "name": "baseline",
             "standards": [
                 {
                     "name": "pd",
-                    "alias": "PKU",
-                    "tokenizer": "pd_tokenizer",
-                    "dict_builder": "default_dict_builder",
                     "versions": [
                         0
                     ],
@@ -100,8 +114,6 @@
                 {
                     "name": "ctb",
                     "alias": "CTB",
-                    "tokenizer": "ctb_tokenizer",
-                    "dict_builder": "default_dict_builder",
                     "versions": [
                         0
                     ],
@@ -109,9 +121,6 @@
                 },
                 {
                     "name": "com",
-                    "alias": "计算机",
-                    "tokenizer": "com_tokenizer",
-                    "dict_builder": "default_dict_builder",
                     "versions": [
                         0
                     ],
@@ -119,9 +128,6 @@
                 },
                 {
                     "name": "fin",
-                    "alias": "经济学",
-                    "tokenizer": "fin_tokenizer",
-                    "dict_builder": "default_dict_builder",
                     "versions": [
                         0
                     ],
@@ -129,9 +135,6 @@
                 },
                 {
                     "name": "med",
-                    "alias": "医药学",
-                    "tokenizer": "med_tokenizer",
-                    "dict_builder": "default_dict_builder",
                     "versions": [
                         0
                     ],
@@ -139,9 +142,6 @@
                 },
                 {
                     "name": "lit",
-                    "alias": "文学",
-                    "tokenizer": "lit_tokenizer",
-                    "dict_builder": "default_dict_builder",
                     "versions": [
                         0
                     ],
@@ -149,54 +149,186 @@
                 },
                 {
                     "name": "zx",
-                    "alias": "诛仙",
-                    "tokenizer": "zx_tokenizer",
-                    "dict_builder": "default_dict_builder",
                     "versions": [
                         0
                     ],
                     "path": "zx_l2_clip"
                 }
             ],
-            "alias": "baseline",
-            "base_path": "/serving/models/baseline",
-            "multitag": true
+            "base_path": "/serving/models/baseline"
         },
         {
             "name": "dict_concat",
             "standards": [
                 {
                     "name": "pd",
-                    "alias": "PKU",
-                    "tokenizer": "pd_tokenizer",
-                    "dict_builder": "default_dict_builder",
                     "versions": [
                         0
                     ],
                     "path": "pd_l2_clip"
                 }
             ],
-            "alias": "dict_concat",
-            "base_path": "/serving/models/dict_concat",
-            "multitag": true
+            "base_path": "/serving/models/dict_concat"
         },
         {
             "name": "dict_hyper",
             "standards": [
                 {
                     "name": "pd",
-                    "alias": "PKU",
-                    "tokenizer": "pd_tokenizer",
-                    "dict_builder": "default_dict_builder",
                     "versions": [
                         0
                     ],
                     "path": "pd_l2_clip"
                 }
             ],
-            "alias": "dict_hyper",
-            "base_path": "/serving/models/dict_hyper",
-            "multitag": true
+            "base_path": "/serving/models/dict_hyper"
+        }
+    ],
+    "solutions": [
+        {
+            "name": "dl",
+            "alias": "深度学习分词",
+            "isleaf": false,
+            "children": [
+                {
+                    "name": "gen",
+                    "alias": "通用分词",
+                    "isleaf": false,
+                    "children": [
+                        {
+                            "name": "pku",
+                            "alias": "PKU",
+                            "isleaf": true,
+                            "model": "baseline",
+                            "standard": "pd",
+                            "context_feature_extractor": "pd_cxt_extractor",
+                            "dictionary_feature_extractor": "default_dict_extractor",
+                            "multitag": true
+                        },
+                        {
+                            "name": "ctb",
+                            "alias": "CTB",
+                            "isleaf": true,
+                            "model": "baseline",
+                            "standard": "ctb",
+                            "context_feature_extractor": "ctb_cxt_extractor",
+                            "dictionary_feature_extractor": "default_dict_extractor",
+                            "multitag": true
+                        }
+                    ]
+                },
+                {
+                    "name": "dom",
+                    "alias": "领域专用分词",
+                    "isleaf": false,
+                    "children": [
+                        {
+                            "name": "com",
+                            "alias": "计算机",
+                            "isleaf": true,
+                            "model": "baseline",
+                            "standard": "com",
+                            "context_feature_extractor": "com_cxt_extractor",
+                            "dictionary_feature_extractor": "default_dict_extractor",
+                            "multitag": true
+                        },
+                        {
+                            "name": "fin",
+                            "alias": "经济学",
+                            "isleaf": true,
+                            "model": "baseline",
+                            "standard": "fin",
+                            "context_feature_extractor": "fin_cxt_extractor",
+                            "dictionary_feature_extractor": "default_dict_extractor",
+                            "multitag": true
+                        },
+                        {
+                            "name": "med",
+                            "alias": "医药学",
+                            "isleaf": true,
+                            "model": "baseline",
+                            "standard": "med",
+                            "context_feature_extractor": "med_cxt_extractor",
+                            "dictionary_feature_extractor": "default_dict_extractor",
+                            "multitag": true
+                        },
+                        {
+                            "name": "lit",
+                            "alias": "文学",
+                            "isleaf": true,
+                            "model": "baseline",
+                            "standard": "lit",
+                            "context_feature_extractor": "lit_cxt_extractor",
+                            "dictionary_feature_extractor": "default_dict_extractor",
+                            "multitag": true
+                        },
+                        {
+                            "name": "zx",
+                            "alias": "诛仙",
+                            "isleaf": true,
+                            "model": "baseline",
+                            "standard": "zx",
+                            "context_feature_extractor": "zx_cxt_extractor",
+                            "dictionary_feature_extractor": "default_dict_extractor",
+                            "multitag": true
+                        }
+                    ]
+                },
+                {
+                    "name": "gen_dict",
+                    "alias": "通用词典分词",
+                    "isleaf": false,
+                    "children": [
+                        {
+                            "name": "pku",
+                            "alias": "PKU",
+                            "isleaf": true,
+                            "model": "attend_input",
+                            "standard": "pd",
+                            "context_feature_extractor": "pd_cxt_extractor",
+                            "dictionary_feature_extractor": "default_dict_extractor",
+                            "multitag": true
+                        },
+                        {
+                            "name": "ctb",
+                            "alias": "CTB",
+                            "isleaf": true,
+                            "model": "attend_input",
+                            "standard": "ctb",
+                            "context_feature_extractor": "ctb_cxt_extractor",
+                            "dictionary_feature_extractor": "default_dict_extractor",
+                            "multitag": true
+                        }
+                    ]
+                },
+                {
+                    "name": "dom_dict",
+                    "alias": "领域专用词典分词",
+                    "isleaf": false,
+                    "children": [
+                        {
+                            "name": "zx",
+                            "alias": "诛仙",
+                            "isleaf": true,
+                            "model": "attend_input",
+                            "standard": "ctb",
+                            "context_feature_extractor": "ctb_cxt_extractor",
+                            "dictionary_feature_extractor": "zx_dict_extractor",
+                            "multitag": true
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "jieba",
+            "alias": "结巴分词",
+            "isleaf": true,
+            "model": "jieba",
+            "standard": "none",
+            "context_feature_extractor": "none",
+            "dictionary_feature_extractor": "none",
+            "multitag": false
         }
     ]
 }

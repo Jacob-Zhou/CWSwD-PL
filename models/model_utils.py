@@ -182,7 +182,7 @@ def crf_multitag_log_likelihood(inputs,
     return log_likelihood, transition_params
 
 
-def input_embedding(input_ids, config, init_embedding=None, bi_embedding=None):
+def input_embedding(input_ids, config, init_embeddings=None):
     initializer = tf.random_uniform_initializer(-0.5, 0.5)
     # initializer = tf.truncated_normal_initializer(stddev=0.001)
 
@@ -198,21 +198,21 @@ def input_embedding(input_ids, config, init_embedding=None, bi_embedding=None):
             num_or_size_splits=config.input_dim_info,
             axis=-1)
 
-        if init_embedding is None:
+        if init_embeddings is None or "uni_embedding" not in init_embeddings:
             uni_embedding = tf.get_variable(shape=[config.vocab_size, config.embedding_size],
                                             dtype=tf.float32,
                                             name='uni_embedding',
                                             initializer=initializer)
         else:
-            uni_embedding = tf.Variable(init_embedding, dtype=tf.float32, name='uni_embedding')
+            uni_embedding = tf.Variable(init_embeddings["uni_embedding"], dtype=tf.float32, name='uni_embedding')
 
-        if bi_embedding is None:
+        if init_embeddings is None or "bi_embedding" not in init_embeddings:
             bi_embedding = tf.get_variable(shape=[config.bigram_size, config.embedding_size],
                                            dtype=tf.float32,
                                            name='bi_embedding',
                                            initializer=initializer)
         else:
-            bi_embedding = tf.Variable(bi_embedding, dtype=tf.float32, name='bi_embedding')
+            bi_embedding = tf.Variable(init_embeddings["bi_embedding"], dtype=tf.float32, name='bi_embedding')
 
         type_embedding = tf.get_variable(shape=[config.type_size, config.embedding_size],
                                          dtype=tf.float32,
@@ -255,13 +255,13 @@ def input_embedding(input_ids, config, init_embedding=None, bi_embedding=None):
         max_length = input_shape[1]
         window_size = input_shape[2]
 
-        if init_embedding is None:
+        if init_embeddings is None or "uni_embedding" not in init_embeddings:
             embedding = tf.get_variable(shape=[config.vocab_size, config.embedding_size],
                                         dtype=tf.float32,
                                         name='uni_embedding',
                                         initializer=initializer)
         else:
-            embedding = tf.Variable(init_embedding, dtype=tf.float32, name='uni_embedding')
+            embedding = tf.Variable(init_embeddings["uni_embedding"], dtype=tf.float32, name='uni_embedding')
 
         with tf.variable_scope('uni_embedding'):
             x = tf.nn.embedding_lookup(embedding, input_ids)

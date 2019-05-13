@@ -117,7 +117,7 @@ dmypy.json
 output*
 
 # data
-data*
+data*/*
 original_data*
 
 # pyCharm
