@@ -325,7 +325,7 @@
             "alias": "结巴分词",
             "isleaf": true,
             "model": "jieba",
-            "standard": "none",
+            "standard": null,
             "context_feature_extractor": "none",
             "dictionary_feature_extractor": "none",
             "multitag": false

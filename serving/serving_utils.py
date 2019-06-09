@@ -64,7 +64,7 @@ def build_from_config(serving_path):
 
 def tree_walker(nodes, prefix, model_option, model_setting):
     for node in nodes:
-        solution_name = f"{prefix}{'' if prefix else '/'}{node['name']}"
+        solution_name = f"{prefix}{'/' if prefix else ''}{node['name']}"
         if node["isleaf"]:
             model_setting[solution_name] = {
                 "model": node["model"],

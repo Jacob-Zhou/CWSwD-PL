@@ -2,56 +2,240 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico"/>
     <title>分词</title>
     <!-- 最新版本的 Bootstrap 核心 CSS 文件 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css"
           integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.9.1/lib/theme-chalk/index.css">
     <link rel="stylesheet" href="./css/main.css">
-    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
     <!-- 最新的 Bootstrap 核心 JavaScript 文件 -->
-
 </head>
 <body>
-<nav class="navbar navbar-default">
-    <div class="container-fluid">
-        <div class="navbar-header">
-            <p class="cws-brand"><b>在线分词平台</b></p>
-        </div>
-    </div>
-</nav>
+<div></div>
 <div class="main-container">
-    <el-input
-            type="textarea"
-            :autosize="{ minRows: 3 }"
-            placeholder="请输入内容"
-            v-model="input_text">
-    </el-input>
-    <!--<div class="input-container">-->
-    <!--<textarea class="form-control" v-model="input_text" rows="3"></textarea>-->
-    <!--</div>-->
-    <div class="button-container">
-        <button class="btn btn-primary submit-btn" type="submit" @click="sentence_submit"
-                data-loading-text="处理中...">切
-        </button>
-        <el-cascader
-                :options="models"
-                v-model="selectedOptions">
-        </el-cascader>
-        <button class="btn btn-primary copy">复制结果</button>
-    </div>
-    <div class="results">
-        <div class="result" v-for="result in results">
-            <div class="token col-xs-1" v-for="token in result">{{token}}</div>
+    <el-scrollbar>
+        <div class="main-container-box">
+            <nav class="navbar navbar-default">
+                <div class="container-fluid">
+                    <div class="navbar-header">
+                        <button type="button" class="navbar-toggle collapsed" data-toggle="collapse"
+                                data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+                            <span class="sr-only">Toggle navigation</span>
+                            <span class="icon-bar"></span>
+                            <span class="icon-bar"></span>
+                            <span class="icon-bar"></span>
+                        </button>
+                        <p class="cws-brand"><b>在线分词平台</b></p>
+                        <img class="img-brand" alt="Brand" src="/favicon.ico">
+                    </div>
+                    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                        <ul v-if="token" class="nav navbar-nav navbar-right">
+                            <li><a href="#" @click="() => {this.$message({message: '施工中。。。'});}">资料</a></li>
+                            <li v-if="group == '0'"><a href="#" @click="show_analysis">数据分析</a></li>
+                            <li><a href="#" @click="logout">注销</a></li>
+                        </ul>
+                        <ul v-else class="nav navbar-nav navbar-right">
+                            <li><a href="#" @click="login">登录</a></li>
+                            <li><a href="#" @click="register">注册</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <el-dialog
+                        v-bind:title="dialogTitle"
+                        :visible.sync="dialogVisible">
+                    <el-form :model="form" status-icon :rules="rules" ref="form" label-width="100px" class="form"
+                             v-if="dialogType == 'login'">
+                        <el-form-item label="用户名" prop="name">
+                            <el-input v-model="form.name" autocomplete="off" clearable></el-input>
+                        </el-form-item>
+                        <el-form-item label="密码" prop="pass">
+                            <el-input type="password" v-model="form.pass" autocomplete="off" show-password></el-input>
+                        </el-form-item>
+                        <el-form-item>
+                            <el-button type="primary" @click="submitForm">登录</el-button>
+                            <el-button @click="register">去注册</el-button>
+                        </el-form-item>
+                    </el-form>
+                    <el-form :model="form" status-icon :rules="registerRules" ref="registerForm" label-width="100px"
+                             class="form"
+                             v-else>
+                        <el-form-item label="用户名" prop="name">
+                            <el-input v-model="form.name" autocomplete="off" clearable></el-input>
+                        </el-form-item>
+                        <el-form-item label="密码" prop="pass">
+                            <el-input type="password" v-model="form.pass" autocomplete="off" show-password
+                                      clearable></el-input>
+                        </el-form-item>
+                        <el-form-item label="确认密码" prop="checkPass">
+                            <el-input type="password" v-model="form.checkPass" autocomplete="off" show-password
+                                      clearable></el-input>
+                        </el-form-item>
+                        <el-form-item prop="email" label="邮箱">
+                            <el-input v-model="form.email" clearable></el-input>
+                        </el-form-item>
+                        <el-form-item label="用户须知" prop="agreement">
+                            <el-switch v-model="form.agreement"></el-switch>
+                        </el-form-item>
+                        <el-form-item>
+                            <el-button type="primary" @click="submitForm">提交</el-button>
+                            <el-button @click="resetForm">重置</el-button>
+                        </el-form-item>
+                    </el-form>
+                </el-dialog>
+            </nav>
+            <div class="analysis-container">
+                <el-dialog
+                        title="数据分析"
+                        :visible.sync="analysisVisible"
+                        @open="open">
+                    <el-tabs v-model="analysisName" type="card" @tab-click="handleClick">
+                        <el-tab-pane label="模型选择分析" name="model">
+                            <canvas id="modelChart" width="800" height="400"></canvas>
+                        </el-tab-pane>
+                        <el-tab-pane label="领域选择分析" name="std">
+                            <canvas id="stdChart" width="800" height="400"></canvas>
+                        </el-tab-pane>
+                        <el-tab-pane label="用户输入分析" name="input">
+                            <canvas id="inputChart" width="800" height="400"></canvas>
+                        </el-tab-pane>
+                        <el-tab-pane label="使用频次分析" name="runTime">
+                            <canvas id="useCountChart" width="800" height="400"></canvas>
+                        </el-tab-pane>
+                        <el-tab-pane label="用户反馈" name="feedback">
+                            <el-table
+                                    :data="feedback_data"
+                                    style="width: 100%"
+                                    max-height="400">
+                                <el-table-column
+                                        prop="model"
+                                        label="模型"
+                                        sortable
+                                        width="180">
+                                </el-table-column>
+                                <el-table-column
+                                        prop="standard"
+                                        label="标准"
+                                        sortable
+                                        width="180">
+                                </el-table-column>
+                                <el-table-column
+                                        label="内容">
+                                    <template slot-scope="scope">
+                                        <el-popover popper-class="analysis-popover" trigger="hover" placement="right">
+                                            <el-scrollbar>
+                                                <code>{{ scope.row.text }}</code>
+                                            </el-scrollbar>
+                                            <div slot="reference" class="name-wrapper">
+                                                {{ scope.row.text.substring(0, 30) + "..." }}
+                                            </div>
+                                        </el-popover>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column
+                                        prop="rate"
+                                        label="评分"
+                                        sortable
+                                        :filters="[{ text: '1', value: 1 }, { text: '2', value: 2 }, { text: '3', value: 3 }, { text: '4', value: 4 }, { text: '5', value: 5 }]"
+                                        :filter-method="filterRate"
+                                >
+                                </el-table-column>
+                                <div class="more_feedback" slot="append">
+                                    <el-button v-if="feedback_loading" type="text"><i class="el-icon-loading"></i>
+                                    </el-button>
+                                    <el-button v-if="feedback_noMore" disabled type="text">没有更多了</i></el-button>
+                                    <div v-show="!feedback_disabled">
+                                        <el-button type="text" @click="load_feedback"><i class="el-icon-arrow-down"></i>
+                                        </el-button>
+                                    </div>
+                                </div>
+                            </el-table>
+                        </el-tab-pane>
+                    </el-tabs>
+                </el-dialog>
+            </div>
+            <div class="page-container">
+                <el-input
+                        type="textarea"
+                        :autosize="{ minRows: 3 }"
+                        placeholder="请输入内容"
+                        v-model="input_text"
+                        v-bind:maxlength="maxlength"
+                        show-word-limit
+                >
+                </el-input>
+                <div class="button-container">
+                    <!--        <button class="btn btn-primary submit-btn" type="submit" @click="sentence_submit"-->
+                    <!--                data-loading-text="处理中...">切-->
+                    <!--        </button>-->
+                    <el-tooltip class="item" effect="dark"
+                                :content="(() => {if(selectedOptions.length < 1) return '请选择模型';else return'提交分词'})()"
+                                placement="bottom-end">
+                        <el-button class="submit-btn" type="primary" icon="el-icon-scissors"
+                                   @click="sentence_submit"
+                                   :loading="submit_loading" :disabled="selectedOptions.length < 1"
+                                   circle></el-button>
+                    </el-tooltip>
+                    <el-tooltip class="item" effect="dark" content="选择模型" placement="bottom">
+                        <el-cascader
+                                :options="models"
+                                v-model="selectedOptions">
+                        </el-cascader>
+                    </el-tooltip>
+
+                    <!--        <button class="btn btn-primary copy">复制结果</button>-->
+                    <el-tooltip class="item" effect="dark"
+                                :content="(() => {if(logged) return '复制结果';else return'复制结果，请先登录'})()"
+                                placement="bottom-start">
+                        <el-button class="copy" icon="el-icon-document-copy" :disabled="!logged" circle></el-button>
+                    </el-tooltip>
+                </div>
+                <div class="results">
+                    <div class="result" v-for="result in results" @dblclick="report(result)">
+                        <div class="token col-xs-1" v-for="token in result">{{token}}</div>
+                    </div>
+                </div>
+                <el-backtop target=".el-scrollbar__wrap"></el-backtop>
+                <el-dialog
+                        title="反馈"
+                        :visible.sync="feedback_visible"
+                        width="30%">
+                    <code>{{feedback_text}}</code>
+                    <el-divider></el-divider>
+                    <el-rate
+                            v-model="feedback_rate"
+                            :icon-classes="iconClasses"
+                            void-icon-class="icon-rate-face-off"
+                            :colors="['#99A9BF', '#F7BA2A', '#FF9900']">
+                    </el-rate>
+                    <span slot="footer" class="dialog-footer">
+                        <el-button @click="feedback_cancel">取 消</el-button>
+                        <el-button type="primary" @click="feedback_submit">确 定</el-button>
+                    </span>
+                </el-dialog>
+            </div>
+            <footer class="footer">
+                <div class="container">
+                    <hr>
+                    <p class="my-sign">Designed and built by Jacob Zhou</p>
+                </div>
+            </footer>
         </div>
-    </div>
+    </el-scrollbar>
 </div>
-<script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.4.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/js-cookie@2/src/js.cookie.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.24.0/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0/dist/Chart.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/blueimp-md5@2.10.0/js/md5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js"
         integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
         crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
-<script src="https://unpkg.com/element-ui/lib/index.js"></script>
-<script src="https://cdn.bootcss.com/clipboard.js/2.0.4/clipboard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.6.10/dist/vue.min.js"></script>
+<!--<script src="https://cdn.jsdelivr.net/npm/vue@2.6.10/dist/vue.js"></script>-->
+<script src="https://cdn.jsdelivr.net/npm/element-ui@2.9.1/lib/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.4/dist/clipboard.min.js"></script>
 <script type="text/javascript" async>
 </script>
 <script type="text/javascript">
@@ -70,45 +254,577 @@
             e.clearSelection();
         });
 
+        let doc_self = self;
+
+        let clock = function (app) {
+            return function () {
+                if (Cookies.get("username") || Cookies.get("token") || Cookies.get("group")) {
+                    $.get("/api/v0/user", {
+                        "username": Cookies.get("username"),
+                        "token": Cookies.get("token"),
+                        "group": Cookies.get("group")
+                    }, function (data) {
+                        app.username = Cookies.get("username");
+                        app.token = Cookies.get("token");
+                        app.group = Cookies.get("group");
+                        app.logged = app.group != null;
+                        get_maxlength(app.group)
+                    });
+                } else {
+                    app.username = Cookies.get("username");
+                    app.token = Cookies.get("token");
+                    app.group = Cookies.get("group");
+                    app.logged = app.group != null;
+                    get_maxlength(app.group)
+                }
+            };
+        };
+
+        var get_maxlength = (group) => {
+            switch (group) {
+                case "0":
+                    app.maxlength = 2000;
+                    break;
+                case "1":
+                    app.maxlength = 1000;
+                    break;
+                case "2":
+                    app.maxlength = 2000;
+                    break;
+                default:
+                    app.maxlength = 100;
+                    break
+            }
+        };
+
+        var draw_charts = () => {
+            switch (app.analysisName) {
+                case "model":
+                    $.get("/api/v0/analysis",
+                        {
+                            "query": "model"
+                        }, function (result) {
+                            if (result.state === "success") {
+                                new Chart($("#modelChart"), {
+                                    type: 'bar',
+                                    data: {
+                                        labels: result.labels,
+                                        datasets: [{
+                                            data: result.data,
+                                            backgroundColor: [
+                                                'rgba(255, 99, 132, 0.2)',
+                                                'rgba(54, 162, 235, 0.2)',
+                                                'rgba(255, 206, 86, 0.2)',
+                                                'rgba(75, 192, 192, 0.2)',
+                                                'rgba(153, 102, 255, 0.2)',
+                                                'rgba(255, 159, 64, 0.2)',
+                                                'rgba(255, 255, 255, 0.2)'
+                                            ],
+                                            borderColor: [
+                                                'rgba(255, 99, 132, 1)',
+                                                'rgba(54, 162, 235, 1)',
+                                                'rgba(255, 206, 86, 1)',
+                                                'rgba(75, 192, 192, 1)',
+                                                'rgba(153, 102, 255, 1)',
+                                                'rgba(255, 159, 64, 1)',
+                                                'rgba(0, 0, 0, 1)'
+                                            ],
+                                            borderWidth: 1
+                                        }]
+                                    },
+                                    options: {
+                                        legend: {
+                                            display: false
+                                        },
+                                        scales: {
+                                            yAxes: [{
+                                                ticks: {
+                                                    beginAtZero: true,
+                                                }
+                                            }]
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    break;
+                case "std":
+                    $.get("/api/v0/analysis",
+                        {
+                            "query": "std"
+                        }, function (result) {
+                            if (result.state === "success") {
+                                new Chart($("#stdChart"), {
+                                    type: 'bar',
+                                    data: {
+                                        labels: result.labels,
+                                        datasets: [{
+                                            data: result.data,
+                                            backgroundColor: [
+                                                'rgba(255, 99, 132, 0.2)',
+                                                'rgba(54, 162, 235, 0.2)',
+                                                'rgba(255, 206, 86, 0.2)',
+                                                'rgba(75, 192, 192, 0.2)',
+                                                'rgba(153, 102, 255, 0.2)',
+                                                'rgba(255, 159, 64, 0.2)',
+                                                'rgba(255, 255, 255, 0.2)'
+                                            ],
+                                            borderColor: [
+                                                'rgba(255, 99, 132, 1)',
+                                                'rgba(54, 162, 235, 1)',
+                                                'rgba(255, 206, 86, 1)',
+                                                'rgba(75, 192, 192, 1)',
+                                                'rgba(153, 102, 255, 1)',
+                                                'rgba(255, 159, 64, 1)',
+                                                'rgba(0, 0, 0, 1)'
+                                            ],
+                                            borderWidth: 1
+                                        }]
+                                    },
+                                    options: {
+                                        legend: {
+                                            display: false
+                                        },
+                                        scales: {
+                                            yAxes: [{
+                                                ticks: {
+                                                    beginAtZero: true,
+                                                }
+                                            }]
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    break;
+                case "input":
+                    $.get("/api/v0/analysis",
+                        {
+                            "query": "input"
+                        }, function (result) {
+                            if (result.state === "success") {
+                                new Chart($("#inputChart"), {
+                                    type: 'bubble',
+                                    data: {
+                                        datasets: [{
+                                            data: result.points,
+                                            backgroundColor: Chart.helpers.color('rgb(255, 99, 132)').alpha(0.5).rgbString(),
+                                            borderColor: 'rgb(255, 99, 132)'
+                                        }]
+                                    },
+                                    options: {
+                                        legend: false,
+
+                                        tooltips: {
+                                            callbacks: {
+                                                label: function (tooltipItem, data) {
+                                                    point = data.datasets[tooltipItem.datasetIndex].data[tooltipItem.index];
+                                                    if (point) {
+                                                        label = ' 输入长度: ' + point.x + ", ";
+                                                        label += '输入行数: ' + point.y + ", ";
+                                                        label += '频次: ' + point.v;
+                                                    } else {
+                                                        label = ''
+                                                    }
+
+                                                    return label;
+                                                }
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    break;
+                case "runTime":
+                    $.get("/api/v0/analysis",
+                        {
+                            "query": "runTime"
+                        }, function (result) {
+                            if (result.state === "success") {
+                                date_labels = [];
+                                value_map = new Map();
+                                for (var j in result.points) {
+                                    value_map.set(result.points[j].x, result.points[j].y);
+                                }
+                                date_data = [];
+                                for (var i in result.labels) {
+                                    date_labels.push(result.labels[i]);
+                                    if (value_map.has(result.labels[i])) {
+                                        date_data.push({
+                                            x: result.labels[i],
+                                            y: value_map.get(result.labels[i])
+                                        });
+                                    } else {
+                                        date_data.push({
+                                            x: result.labels[i],
+                                            y: 0
+                                        });
+                                    }
+                                }
+                                new Chart($("#useCountChart"), {
+                                    type: 'line',
+                                    data: {
+                                        labels: result.labels,
+                                        datasets: [{
+                                            data: date_data,
+                                            fill: false,
+                                            backgroundColor: Chart.helpers.color('rgb(255, 99, 132)').alpha(0.5).rgbString(),
+                                            borderColor: 'rgb(255, 99, 132)'
+                                        }]
+                                    },
+                                    options: {
+                                        legend: {
+                                            display: false
+                                        },
+                                        scales: {
+                                            xAxes: [{
+                                                type: 'time',
+                                                time: {
+                                                    parser: 'YYYY-MM-DD',
+                                                    unit: 'day',
+                                                    displayFormats: {
+                                                        day: 'MM-DD'
+                                                    }
+                                                },
+                                                scaleLabel: {
+                                                    display: true,
+                                                    labelString: '日期'
+                                                }
+                                            }],
+                                            yAxes: [{
+                                                scaleLabel: {
+                                                    display: true,
+                                                    labelString: '使用次数'
+                                                },
+                                                ticks: {
+                                                    beginAtZero: true
+                                                }
+                                            }]
+                                        },
+                                    }
+
+                                });
+                            }
+                        });
+                    break;
+                case "feedback":
+                    app.feedback_noMore = false;
+                    if (app.feedback_data.length <= 0){
+                        app.feedback_loading = true;
+                        $.get("/api/v0/analysis", {
+                            "query": "feedback",
+                            "offset": app.feedback_data.length,
+                            "size": 10
+                        }, function (result) {
+                            if (result.state === "success") {
+                                app.feedback_data = result.data
+                            }
+                            app.feedback_loading = false;
+                        });
+                    }
+                    break;
+            }
+        };
+
         let app = new Vue({
             el: '.main-container',
-            data: {
-                input_text: "私营企业主成为社会主义事业的建设者",
-                results: [],
-                models: [],
-                selectedOptions: []
+            data() {
+                var validatePass = (rule, value, callback) => {
+                    if (value === '') {
+                        callback(new Error('请再次输入密码'));
+                    } else if (value !== this.form.pass) {
+                        callback(new Error('两次输入密码不一致'));
+                    } else {
+                        callback();
+                    }
+                };
+                var validateUserName = (rule, value, callback) => {
+                    if (value === '') {
+                        callback(new Error('请输入用户名'));
+                    }
+                    $.post("/api/v0/user",
+                        {
+                            "query": "is_used",
+                            "username": this.form.name
+                        }, function (data) {
+                            if (data.state === "success" && data.message === "unused") {
+                                callback();
+                            } else {
+                                callback(new Error('用户名已经被使用'));
+                            }
+                        });
+                };
+                return {
+                    analysisVisible: false,
+                    analysisName: "model",
+                    // analysis
+                    username: null,
+                    token: null,
+                    group: null,
+                    dialogVisible: false,
+                    dialogType: "login",
+                    dialogTitle: "登录",
+                    form: {
+                        name: '',
+                        pass: '',
+                        checkPass: '',
+                        email: '',
+                        agreement: false,
+                    },
+                    rules: {
+                        name: [
+                            {required: true, message: '请输入用户名', trigger: 'blur'},
+                            {min: 3, max: 16, message: '长度在 3 到 16 个字符之间', trigger: 'blur'}
+                        ],
+                        pass: [
+                            {required: true, message: '请输入密码', trigger: 'blur'},
+                            {min: 6, max: 24, message: '长度在 6 到 24 个字符之间', trigger: 'blur'}
+                        ]
+                    },
+                    registerRules: {
+                        name: [
+                            {required: true, validator: validateUserName, trigger: 'blur'},
+                            {min: 3, max: 16, message: '长度在 3 到 16 个字符之间', trigger: 'blur'}
+                        ],
+                        pass: [
+                            {required: true, message: '请输入密码', trigger: 'blur'},
+                            {min: 6, max: 24, message: '长度在 6 到 24 个字符之间', trigger: 'blur'}
+                        ],
+                        checkPass: [
+                            {required: true, validator: validatePass, trigger: 'blur'}
+                        ],
+                        email: [
+                            {required: true, message: '请输入邮箱地址', trigger: 'blur'},
+                            {type: 'email', message: '请输入正确的邮箱地址', trigger: ['blur', 'change']}
+                        ],
+                        agreement: [
+                            {required: true, message: '请同意用户须知', trigger: 'change'}
+                        ]
+                    },
+                    // user
+                    input_text: "偏偏魔教中人战又不战,退又不肯退。\n" +
+                        "流波山地势又大,在空中目标明显,但若要深入下去寻找魔教中人的老巢,还当真不易。",
+                    maxlength: "100",
+                    results: [],
+                    models: [],
+                    selectedOptions: [],
+                    submit_loading: false,
+                    logged: false,
+                    log_checker: null,
+                    result_model: null,
+                    result_standard: null,
+                    feedback_data: [],
+                    feedback_text: "",
+                    feedback_rate: null,
+                    feedback_visible: false,
+                    feedback_loading: false,
+                    feedback_submitting: false,
+                    feedback_noMore: false,
+                    iconClasses: ['icon-rate-face-1', 'icon-rate-face-2', 'icon-rate-face-3']
+                }
+            },
+            computed: {
+                feedback_disabled() {
+                    return this.feedback_loading || this.feedback_noMore
+                }
             },
             beforeCreate() {
-                $.get("/models", function (data) {
-                    app.models = data.models;
+                _this = this;
+                $.get("/api/v0/segment", {"query": "options"}, function (data) {
+                    _this.models = data.models;
                 });
+                clock(this)();
+                this.log_checker = doc_self.setInterval(clock(this), 1000);
             },
             methods: {
-                sentence_submit: function () {
-                    if (hasSubmit === false) {
-                        hasSubmit = true;
-                        let $btn = $(".submit-btn").button('loading');
-                        setTimeout(function () {
-                            $btn.button('reset');
-                            hasSubmit = false;
-                        }, 10000);
-                        $.post("/v0/segment",
-                            {
-                                "input": app.input_text,
-                                "solution": app.selectedOptions[app.selectedOptions.length - 1]
-                            }, function (data) {
-                                hasSubmit = false;
-                                if (data.state === "success") {
-                                    app.results = data.results;
-                                    $btn.button('reset');
-                                } else {
-                                    alert("提交失败");
-                                }
-                            });
+                login: function () {
+                    app.dialogVisible = true;
+                    app.dialogType = "login";
+                    app.dialogTitle = "登录";
+                },
+                register: function () {
+                    app.dialogVisible = true;
+                    app.dialogType = "register";
+                    app.dialogTitle = "注册";
+                },
+                logout: function () {
+                    let this_meg;
+                    $.post("/api/v0/user",
+                        {
+                            "query": "logout"
+                        }, function (data) {
+                            if (data.state === "success") {
+                                app.username = Cookies.get("username");
+                                app.token = Cookies.get("token");
+                                app.group = Cookies.get("group");
+                                app.logged = false;
+                                get_maxlength(app.group)
+                            } else {
+                                this_meg.error("注销失败")
+                            }
+                        });
+                },
+                submitForm: function () {
+                    let this_meg = this.$message;
+                    if (app.dialogType === "login") {
+                        this.$refs['form'].validate((valid) => {
+                            if (valid) {
+                                doc_self.clearInterval(app.log_checker);
+                                $.post("/api/v0/user",
+                                    {
+                                        "query": "login",
+                                        "username": app.form.name,
+                                        "password": md5(app.form.pass)
+                                    }, function (data) {
+                                        if (data.state === "success") {
+                                            app.username = Cookies.get("username");
+                                            app.token = Cookies.get("token");
+                                            app.group = Cookies.get("group");
+                                            app.dialogVisible = false;
+                                            app.logged = true;
+                                            get_maxlength(app.group)
+                                        } else {
+                                            this_meg.error("登录失败")
+                                        }
+                                        app.log_checker = doc_self.setInterval(clock(app), 1000);
+                                    });
+                            } else {
+                                this_meg.error("请确认输入正确");
+                            }
+                        });
+                    } else {
+                        this.$refs['registerForm'].validate((valid) => {
+                            if (valid) {
+                                $.post("/api/v0/user",
+                                    {
+                                        "query": "register",
+                                        "username": app.form.name,
+                                        "password": md5(app.form.pass),
+                                        "email": app.form.email
+                                    }, function (data) {
+                                        if (data.state === "success") {
+                                            app.username = Cookies.get("username");
+                                            app.token = Cookies.get("token");
+                                            app.group = Cookies.get("group");
+                                            app.dialogVisible = false;
+                                            app.logged = true;
+                                            get_maxlength(app.group)
+                                        } else {
+                                            this_meg.error("注册失败")
+                                        }
+                                    });
+                            } else {
+                                this_meg.error("请确认输入正确");
+                            }
+                        });
                     }
                 },
+                resetForm: function () {
+                    if (app.dialogType === "login") {
+                        this.$refs['form'].resetFields();
+                    } else {
+                        this.$refs['registerForm'].resetFields();
+                    }
+                },
+                show_analysis: function () {
+                    app.analysisVisible = true;
+                    app.feedback_noMore = false;
+                },
+                filterRate: function (value, row) {
+                    return row.rate === value;
+                },
+                open: function () {
+                    draw_charts()
+                },
+                handleClick: function (tab, event) {
+                    draw_charts()
+                },
+                sentence_submit: function () {
+                    let this_meg;
+                    if (!app.selectedOptions[app.selectedOptions.length - 1]) {
+                        this.$message.error("请选择模型");
+                        return
+                    }
+                    app.submit_loading = true;
+                    setTimeout(function () {
+                        app.submit_loading = false;
+                    }, 10000);
+                    this_meg = this.$message;
+                    $.post("/api/v0/segment",
+                        {
+                            "input": app.input_text,
+                            "solution": app.selectedOptions[app.selectedOptions.length - 1]
+                        }, function (data) {
+                            if (data.state === "success") {
+                                app.results = data.results;
+                                app.submit_loading = false;
+                                app.result_model = data.model;
+                                app.result_standard = data.standard;
+                            } else {
+                                this_meg.error("请选择模型");
+                                this_meg.error(data.message);
+                            }
+                        });
+                },
+                report: function (result) {
+                    app.feedback_visible = true;
+                    app.feedback_rate = null;
+                    app.feedback_text = result.join(' ');
+                },
+                feedback_cancel: function () {
+                    app.feedback_visible = false;
+                    this.$message({
+                        type: 'info',
+                        message: '已取消反馈'
+                    });
+                },
+                feedback_submit: function () {
+                    let this_meg;
+                    app.feedback_submitting = true;
+                    setTimeout(function () {
+                        app.feedback_submitting = false;
+                    }, 10000);
+                    this_meg = this.$message;
+                    $.post("/api/v0/feedback",
+                        {
+                            "text": app.feedback_text,
+                            "rate": app.feedback_rate,
+                            "model": app.result_model,
+                            "standard": app.result_standard
+                        }, function (data) {
+                            if (data.state === "success") {
+                                this_meg({
+                                    type: 'success',
+                                    message: '反馈成功!'
+                                });
+                            } else {
+                                this_meg.error(data.message);
+                            }
+                        });
+                    app.feedback_visible = false;
+                },
+                load_feedback: function () {
+                    app.feedback_loading = true;
+                    $.get("/api/v0/analysis",
+                        {
+                            "query": "feedback",
+                            "offset": app.feedback_data.length,
+                            "size": 5
+                        }, function (result) {
+                            if (result.state === "success") {
+                                if (result.data.length === 0) {
+                                    app.feedback_noMore = true;
+                                } else {
+                                    app.feedback_data = app.feedback_data.concat(result.data);
+                                }
+                            }
+                            app.feedback_loading = false;
+                        });
+                }
             }
         });
+
     })
 </script>
 </body>
